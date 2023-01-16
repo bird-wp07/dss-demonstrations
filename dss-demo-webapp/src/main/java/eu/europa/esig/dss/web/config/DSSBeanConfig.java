@@ -20,6 +20,7 @@ import eu.europa.esig.dss.spi.client.http.DSSFileLoader;
 import eu.europa.esig.dss.spi.client.http.IgnoreDataLoader;
 import eu.europa.esig.dss.spi.client.jdbc.JdbcCacheConnector;
 import eu.europa.esig.dss.spi.tsl.TrustedListsCertificateSource;
+import eu.europa.esig.dss.spi.x509.CommonTrustedCertificateSource;
 import eu.europa.esig.dss.spi.x509.KeyStoreCertificateSource;
 import eu.europa.esig.dss.spi.x509.aia.DefaultAIASource;
 import eu.europa.esig.dss.spi.x509.aia.OnlineAIASource;
@@ -86,6 +87,15 @@ public class DSSBeanConfig {
 
 	@Value("${oj.content.keystore.password}")
 	private String ksPassword;
+
+	@Value("${customKeystore.type}")
+	private String cksType;
+
+	@Value("${customKeystore.filename}")
+	private String cksFilename;
+
+	@Value("${customKeystore.password}")
+	private String cksPassword;
 
 	@Value("${dss.server.signing.keystore.type}")
 	private String serverSigningKeystoreType;
@@ -200,6 +210,20 @@ public class DSSBeanConfig {
 		certificateVerifier.setAIASource(cachedAIASource());
 		certificateVerifier.setTrustedCertSources(trustedListSource());
 
+		// If configured, add keystore to trusted certificate sources.
+		if (!cksFilename.equals("")) {
+			try {
+				KeyStoreCertificateSource keystore;
+				keystore = new KeyStoreCertificateSource(new ClassPathResource(cksFilename).getFile(), cksType, cksPassword);
+				CommonTrustedCertificateSource keystoreCertificateSource = new CommonTrustedCertificateSource();
+				keystoreCertificateSource.importAsTrusted(keystore);
+				certificateVerifier.addTrustedCertSources(keystoreCertificateSource);
+				LOG.info("Added trusted keystore from " + cksFilename);
+			} catch (Exception e) {
+				throw new DSSException("Can't import keystore from file " + cksFilename + ". Reason: ", e);
+			}
+		}
+		
 		// Default configs
 		certificateVerifier.setAlertOnMissingRevocationData(new ExceptionOnStatusAlert());
 		certificateVerifier.setCheckRevocationForUntrustedChains(false);
